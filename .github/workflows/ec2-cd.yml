@@ -1,0 +1,68 @@
+name: mChat Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+        
+      - name: Replace pnpm workspace file
+        run: cp pnpm-workspace.prod.yaml pnpm-workspace.yaml
+
+      - name: Install dependencies
+        run: pnpm i
+
+      - name: Build packages
+        env:
+          VITE_BACKEND_URL: https://${{ secrets.APP_DOMAIN }}
+        run: pnpm build
+
+      - name: Upload build files
+        uses: actions/upload-artifact@v4
+        with:
+          name: mchat_build
+          path: |
+            common
+            server
+            web/dist
+            infra/ec2
+            pnpm-workspace.yaml
+            pnpm-lock.yaml
+            package.json
+
+
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Download build files
+        uses: actions/download-artifact@v4
+        with:
+          name: mchat_build
+
+      - name: Install packages
+        run: pnpm i
+
+      - name: Restart application
+        run: pm2 restart mchat
+
+        
+    
